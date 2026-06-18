@@ -34,13 +34,11 @@ Records were matched across sources by **normalized player name** (accent-stripp
 
 ---
 
-## 🔬 Methodology (What Makes This Rigorous)
-
-Three deliberate decisions separate this from a typical draft model:
+## 🔬 Methodology
 
 **1. No data leakage.** NBA career statistics are *never* used as model inputs — only information available before a player is drafted. Using career stats to "predict" career outcomes is the most common silent bug in projects like this.
 
-**2. Runway-neutral target.** A naive impact score built from career totals (Win Shares, VORP) is badly confounded by *how long a player has been in the league*. Among players with ≥50 career games:
+**2. Runway-neutral target.** A typical impact score built from career totals (Win Shares, VORP) is badly confounded by *how long a player has been in the league*. Among players with ≥50 career games:
 
 | Target quantity | Correlation with career length (`Yrs`) |
 |---|---|
@@ -82,10 +80,8 @@ A totals-based model partly measures *time*, not *talent*. The fix: predict a **
 nba_rookie-main/
 ├── data_clean.ipynb              # Scrape + merge draft, combine, and college data
 ├── predictive_model.ipynb        # Target design, modeling, validation, Tableau export
-├── nba_dashboard_model_filter_tabs_fixed.twbx   # Tableau dashboard
+├── nba_dashboard_rookie.twbx   # Tableau dashboard
 ├── README.md
-├── tableau_nba_draft_master.csv              # Master table (also in data/)
-├── tableau_nba_draft_model_predictions.csv   # Model output (also in data/)
 └── data/
     ├── NBA_Draft_Combine_2000_2024_nl.csv    # Raw Kaggle combine file (input)
     ├── nba_draft_data.csv                    # Scraped draft history
@@ -138,7 +134,7 @@ Some intermediate CSVs are written to the **project root** when you run `data_cl
 **Requirements:** Python 3.10+ with:
 
 ```bash
-pip install pandas numpy scikit-learn matplotlib lxml pyarrow
+pip install pandas numpy scikit-learn matplotlib lxml pyarrow jupyterlab
 ```
 
 **Important:** Launch Jupyter from the **project root** (`nba_rookie-main/`), not from `data/`. The notebooks use a mix of root-level and `data/`-prefixed paths.
@@ -194,41 +190,17 @@ If you only want to review results or tweak the model:
 5. Plot feature importance and OOF actual vs predicted scatter
 6. Label over/underperformers from OOF residuals (±1 SD); export for Tableau
 7. Optional: draft-class summaries and single-player lookup cells at the end
-
----
-
-## 📈 Using the Tableau Dashboard
-
-1. Open `nba_dashboard_model_filter_tabs_fixed.twbx`.
-2. Confirm the data source points to `tableau_nba_draft_model_predictions.csv` (update the path if you moved the file).
-3. Use the filter tabs to slice by draft year, combine availability, college coverage, or model result.
-4. **`model_result`** is the primary storytelling field — it flags who beat or missed their pre-draft profile, not simply who had the best career.
-5. Compare `rate_impact` (actual) vs `predicted_rate_impact` (expectation) to see how conservative the model is — predictions cluster near zero while stars and busts spread wider.
-
----
-
-## 🛠️ Troubleshooting
-
-| Issue | Fix |
-|---|---|
-| `FileNotFoundError` for `tableau_nba_draft_master.csv` | Run `data_clean.ipynb` first, or copy the file from `data/` to the project root |
-| `ArrowKeyError: pandas.period already defined` when reading toRvik parquet | Restart the Jupyter kernel; upgrade `pandas` and `pyarrow`; or skip the scrape and use existing college CSVs |
-| `KeyError: 'has_combine_data'` during EDA | That column exists on the final `tableau_data` / exported CSV, not on mid-pipeline `master` objects — load `tableau_nba_draft_master.csv` instead |
-| `TypeError` comparing `G` (games) | Coerce first: `df["G"] = pd.to_numeric(df["G"], errors="coerce")` |
-| Combine `Position` is null | Expected for picks with no combine match (left join) — use `has_combine_data` or non-null `uniqueID` as the match indicator |
-| Very recent draft picks lack labels | Players under 50 career games get `Insufficient NBA sample`, not a fabricated residual |
-
+   
 ---
 
 ## 🧰 Tech Stack
 
-**Python** (pandas, scikit-learn, matplotlib) · **Jupyter** · **Tableau** · web scraping via `pandas.read_html` · Parquet via `pyarrow`
+***Python** (pandas, numpy, scikit-learn, matplotlib, lxml, pyarrow) · **Jupyter** · **Tableau / Tableau Public** · **Basketball Reference** + **Kaggle** + **toRvik** data · scraping via* `pandas.read_html` *· Parquet via* `pyarrow`
 
 ---
 
 ## 🔮 Limitations & Next Steps
-
-- **Fixed-window target (gold standard).** The rate-based target de-biases career length but doesn't fully eliminate survivorship. The cleanest fix is a true **first-3-year** or **first-5-year** impact window, which requires scraping season-by-season NBA logs from Basketball Reference — the highest-value next extension.
+- **Richer pre-draft features.** RF only beats Ridge when there is nonlinear structure to exploit; adding variables like age at draft, mock-draft consensus, international/overseas stats, injury history, and positional context could give the forest more signal to work with beyond pick + combine + college.
+- **Fixed-window target.** The rate-based target de-biases career length but doesn't fully eliminate survivorship. The cleanest fix is a true **first-3-year** or **first-5-year** impact window, which requires scraping season-by-season NBA logs from Basketball Reference.
 - **College coverage starts in 2014**, so pre-2014 picks have combine + draft data but no college features.
-- **Composite weighting.** BPM and WS/48 are equally weighted after standardizing; a defensible alternative is to weight by minutes played or validate the weighting against an external value metric.
 - **Modest R² is a feature, not a bug.** The model is best used as an exploratory over/underperformer flagger, not a precise draft-value predictor.
